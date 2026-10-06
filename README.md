@@ -45,12 +45,14 @@ and `repos/<slug>/`.
    `?author=<name> <email>`); the file/directory tables then show that
    author's per-object metrics and ownership.
 6. **Drill down**: click any file or directory to open its detail page with
-   per-author breakdown (breadcrumbs, immediate children for directories).
+   per-author breakdown (breadcrumbs, immediate children for directories) and
+   an **ownership bar** — a stacked, hoverable composition of churn per author.
 7. Tables can be **searched** (text box above each table) and **sorted**
    (click a column header).
 8. The repository page includes **charts** (unfiltered view): top files and
-   top authors by churn (bars) and monthly added/removed lines over time
-   (line chart), rendered as dependency-free inline SVG.
+   top authors by churn (bars), a **treemap** of top-level directories sized by
+   churn, and monthly added/removed lines over time (line chart), all rendered
+   as dependency-free inline SVG.
 9. The repository page supports **commit-set filtering**: pick a date range
    (from / until, until is exclusive, as in the spec's H_i,j sets) and every
    metric, table and author filter recomputes over that commit subset.

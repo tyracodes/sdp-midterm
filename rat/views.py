@@ -204,6 +204,25 @@ def repo_page(repo_id):
                 if commit_range is None:
                     # charts are repository-wide, so they only render in the
                     # unfiltered view
+                    top_dirs = sorted(
+                        (
+                            {"path": row["path"], "churn": row["churn"]}
+                            for row in data["dirs"]
+                            if row["path"]
+                            and "/" not in row["path"]
+                            and row["churn"] > 0
+                        ),
+                        key=lambda item: -item["churn"],
+                    )
+                    rest = top_dirs[12:]
+                    top_dirs = top_dirs[:12]
+                    if rest:
+                        top_dirs.append(
+                            {
+                                "path": "(other: %d)" % len(rest),
+                                "churn": sum(item["churn"] for item in rest),
+                            }
+                        )
                     context["chart_data"] = {
                         "files": [
                             {"path": row["path"], "churn": row["churn"]}
@@ -220,6 +239,7 @@ def repo_page(repo_id):
                             if row["churn"] > 0
                         ],
                         "timeline": _timeline(con, repo_id, repo["head_sha"]),
+                        "dirs": top_dirs,
                     }
         return render_template("repo.html", **context)
     finally:

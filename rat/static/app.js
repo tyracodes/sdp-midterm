@@ -219,6 +219,68 @@
     container.appendChild(svg);
   }
 
+  function renderTreemap(container, rows) {
+    if (!container) { return; }
+    if (!rows || !rows.length) { container.textContent = "No data."; return; }
+    var total = 0;
+    for (var i = 0; i < rows.length; i++) { total += rows[i].churn; }
+    if (!total) { container.textContent = "No data."; return; }
+    var palette = ["#5b9dff", "#3ddc97", "#ff6b6b", "#f7b32b", "#b980ff", "#4dd0e1", "#f06292", "#9ccc65"];
+    var W = 900;
+    var H = 280;
+    var rects = [];
+    function split(items, x, y, w, h, vertical) {
+      if (!items.length) { return; }
+      if (items.length === 1) { rects.push({ row: items[0], x: x, y: y, w: w, h: h }); return; }
+      var sum = 0;
+      for (var i = 0; i < items.length; i++) { sum += items[i].churn; }
+      var acc = 0;
+      var cut = items.length - 1;
+      for (var j = 0; j < items.length - 1; j++) {
+        acc += items[j].churn;
+        if (acc >= sum / 2) { cut = j + 1; break; }
+      }
+      var groupA = items.slice(0, cut);
+      var frac = 0;
+      for (var a = 0; a < groupA.length; a++) { frac += groupA[a].churn; }
+      frac = sum > 0 ? frac / sum : 0.5;
+      if (vertical) {
+        split(groupA, x, y, w * frac, h, false);
+        split(items.slice(cut), x + w * frac, y, w * (1 - frac), h, false);
+      } else {
+        split(groupA, x, y, w, h * frac, true);
+        split(items.slice(cut), x, y + h * frac, w, h * (1 - frac), true);
+      }
+    }
+    split(rows, 0, 0, W, H, true);
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H });
+    for (var r = 0; r < rects.length; r++) {
+      var rect = rects[r];
+      var other = rect.row.path.indexOf("(other") === 0;
+      var fill = other ? "#3a4657" : palette[r % palette.length];
+      var textFill = other ? "#c7cfdd" : "#0f141c";
+      var g = svgEl("g", {});
+      var box = svgEl("rect", {
+        x: rect.x, y: rect.y, width: Math.max(0, rect.w - 2), height: Math.max(0, rect.h - 2),
+        rx: 3, fill: fill, "fill-opacity": 0.85, stroke: "#0f141c", "stroke-width": 1
+      });
+      var share = ((100 * rect.row.churn) / total).toFixed(1);
+      box.appendChild(svgEl("title", {}, rect.row.path + " — " + fmtShort(rect.row.churn) + " churn (" + share + "%)"));
+      g.appendChild(box);
+      if (rect.w > 64 && rect.h > 22) {
+        var label = rect.row.path;
+        var maxChars = Math.floor((rect.w - 12) / 6.5);
+        if (label.length > maxChars) { label = label.slice(0, Math.max(1, maxChars - 1)) + "…"; }
+        g.appendChild(svgEl("text", { x: rect.x + 6, y: rect.y + 15, "font-size": 11, fill: textFill }, label));
+        if (rect.h > 36) {
+          g.appendChild(svgEl("text", { x: rect.x + 6, y: rect.y + 29, "font-size": 10, fill: textFill, opacity: 0.75 }, fmtShort(rect.row.churn) + " (" + share + "%)"));
+        }
+      }
+      svg.appendChild(g);
+    }
+    container.appendChild(svg);
+  }
+
   function renderCharts() {
     var el = document.getElementById("chart-data");
     if (!el) { return; }
@@ -230,6 +292,7 @@
       function (row) { return " (" + (row.ownership * 100).toFixed(1) + "%)"; }
     );
     renderTimeline(document.getElementById("chart-timeline"), data.timeline);
+    renderTreemap(document.getElementById("chart-treemap"), data.dirs);
   }
 
   function csvCell(value) {

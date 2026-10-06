@@ -137,6 +137,26 @@ select {
   border-radius: 6px;
 }
 .error-code { font-size: 40px; margin: 0 0 4px; }
+
+.own-bar {
+  display: flex;
+  height: 14px;
+  margin: 4px 0 10px;
+  border-radius: 7px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.own-seg { height: 100%; }
+.own-seg:hover { filter: brightness(1.25); }
+.own-seg:nth-child(8n+1) { background: #5b9dff; }
+.own-seg:nth-child(8n+2) { background: #3ddc97; }
+.own-seg:nth-child(8n+3) { background: #ff6b6b; }
+.own-seg:nth-child(8n+4) { background: #f7b32b; }
+.own-seg:nth-child(8n+5) { background: #b980ff; }
+.own-seg:nth-child(8n+6) { background: #4dd0e1; }
+.own-seg:nth-child(8n+7) { background: #f06292; }
+.own-seg:nth-child(8n+8) { background: #9ccc65; }
+.own-bar .own-rest { background: #3a4657; }
 .crumbs { color: var(--muted); font-size: 13.5px; margin: 4px 0 14px; }
 .banner {
   background: var(--panel);

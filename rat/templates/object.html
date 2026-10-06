@@ -37,6 +37,15 @@
 
 <h2>Authors on this {{ obj_type }} <span class="muted small">({{ author_rows|length }})</span></h2>
 {% if author_rows %}
+{% set churn_sum = author_rows|sum(attribute='churn') %}
+{% set top_authors = author_rows[:10] %}
+{% if churn_sum > 0 %}
+<div class="own-bar" title="Ownership — share of churn by author{% if author_rows|length > 10 %} (top 10 shown, grey = other authors){% endif %}">
+  {% for seg in top_authors %}<span class="own-seg" style="width: {{ "%.3f"|format(100 * seg['churn'] / churn_sum) }}%" title="{{ seg['name'] }} — {{ "%.1f"|format(100 * seg['ownership']) }}% of churn"></span>{% endfor %}
+  {% set rest = churn_sum - (top_authors|sum(attribute='churn')) %}
+  {% if rest > 0 %}<span class="own-seg own-rest" style="width: {{ "%.3f"|format(100 * rest / churn_sum) }}%" title="Other authors"></span>{% endif %}
+</div>
+{% endif %}
 <table data-sortable>
   <thead>
     <tr><th>Author</th><th>Email</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Mods</th><th>Ownership</th></tr>
