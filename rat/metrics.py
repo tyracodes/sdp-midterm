@@ -49,6 +49,13 @@ def compute(con, repo_id, version, commit_range=None):
     return result
 
 
+def invalidate(repo_id):
+    """Drop memoised results for one repository (e.g. after merge changes)."""
+    with _cache_lock:
+        for key in [k for k in _cache if k[0] == repo_id]:
+            del _cache[key]
+
+
 def _compute(con, repo_id, commit_range=None):
     where = ""
     params = [repo_id]
@@ -65,6 +72,39 @@ def _compute(con, repo_id, commit_range=None):
         "SELECT COUNT(*) AS c FROM commits WHERE repo_id=?" + where, params
     ).fetchone()["c"]
 
+    # Manual author merging: user-defined (name, email) aliases are resolved
+    # (transitively) so that merged identities aggregate as a single author.
+    alias = {
+        (row["from_name"], row["from_email"]): (row["to_name"], row["to_email"])
+        for row in con.execute(
+            "SELECT from_name, from_email, to_name, to_email "
+            "FROM author_merges WHERE repo_id=?",
+            (repo_id,),
+        )
+    }
+
+    def resolve_identity(name, email):
+        key = (name, email)
+        for _ in range(100):
+            target = alias.get(key)
+            if target is None or target == key:
+                break
+            key = target
+        return key
+
+    canonical = {}  # author id -> resolved (name, email)
+    representative = {}  # resolved (name, email) -> author id (negative = synthetic)
+    for row in con.execute(
+        "SELECT id, name, email FROM authors WHERE repo_id=? ORDER BY id", (repo_id,)
+    ):
+        canonical[row["id"]] = resolve_identity(row["name"], row["email"])
+        representative.setdefault(canonical[row["id"]], row["id"])
+    synthetic = 0
+    for identity in canonical.values():
+        if identity not in representative:
+            synthetic -= 1
+            representative[identity] = synthetic
+
     member_author_ids = None
     if commit_range is not None:
         member_author_ids = {
@@ -74,16 +114,23 @@ def _compute(con, repo_id, commit_range=None):
                 params,
             )
         }
+    member_ids = None
+    if member_author_ids is not None:
+        member_ids = {representative[canonical[aid]] for aid in member_author_ids}
 
     authors = {}
     for row in con.execute(
         "SELECT id, name, email FROM authors WHERE repo_id=?", (repo_id,)
     ):
-        if member_author_ids is not None and row["id"] not in member_author_ids:
+        merged_id = representative[canonical[row["id"]]]
+        if member_ids is not None and merged_id not in member_ids:
             continue
-        authors[row["id"]] = {
-            "name": row["name"],
-            "email": row["email"],
+        if merged_id in authors:
+            continue
+        identity = canonical[row["id"]]
+        authors[merged_id] = {
+            "name": identity[0],
+            "email": identity[1],
             "commits": 0,
             "added": 0,
             "removed": 0,
@@ -95,11 +142,12 @@ def _compute(con, repo_id, commit_range=None):
         + " GROUP BY author_id",
         params,
     ):
-        if row["author_id"] in authors:
-            authors[row["author_id"]]["commits"] = row["c"]
+        merged_id = representative[canonical[row["author_id"]]]
+        if merged_id in authors:
+            authors[merged_id]["commits"] += row["c"]
 
     sha_author = {
-        row["sha"]: row["author_id"]
+        row["sha"]: representative[canonical[row["author_id"]]]
         for row in con.execute(
             "SELECT sha, author_id FROM commits WHERE repo_id=?" + where, params
         )

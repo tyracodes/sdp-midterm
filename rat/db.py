@@ -27,6 +27,16 @@ CREATE TABLE IF NOT EXISTS authors (
     UNIQUE (repo_id, name, email)
 );
 
+CREATE TABLE IF NOT EXISTS author_merges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+    from_name TEXT NOT NULL,
+    from_email TEXT NOT NULL,
+    to_name TEXT NOT NULL,
+    to_email TEXT NOT NULL,
+    UNIQUE (repo_id, from_name, from_email)
+);
+
 CREATE TABLE IF NOT EXISTS commits (
     repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
     sha TEXT NOT NULL,

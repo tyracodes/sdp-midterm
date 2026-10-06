@@ -129,6 +129,11 @@ def repo_page(repo_id):
             context["filter_since"] = request.args.get("since", "")
             context["filter_until"] = request.args.get("until", "")
             context["commit_set_active"] = commit_range is not None
+            context["merges"] = con.execute(
+                "SELECT id, from_name, from_email, to_name, to_email "
+                "FROM author_merges WHERE repo_id=? ORDER BY id",
+                (repo_id,),
+            ).fetchall()
             author_filter, author_name, author_email = _author_filter()
             context["author_filter"] = author_filter
             context["author_summary"] = None
@@ -259,6 +264,80 @@ def browse_page(repo_id):
         child_dirs=child_dirs,
         crumbs=crumbs,
     )
+
+
+def _identity(raw):
+    """Parse 'Name <email>' into (name, email); None when malformed."""
+    raw = (raw or "").strip()
+    if raw.endswith(">") and " <" in raw:
+        name, _, email = raw[:-1].rpartition(" <")
+        return name, email
+    return None
+
+
+@bp.post("/repo/<int:repo_id>/merge")
+def merge_authors(repo_id):
+    """Manually merge one author identity into another (dashboard action)."""
+    source = _identity(request.form.get("from"))
+    target = _identity(request.form.get("to"))
+    if source is None or target is None or source == target:
+        return redirect(url_for("main.repo_page", repo_id=repo_id))
+    con = db.connect()
+    try:
+        repo = con.execute("SELECT * FROM repos WHERE id=?", (repo_id,)).fetchone()
+        if repo is None:
+            abort(404)
+        # both identities must belong to this repository
+        count = con.execute(
+            "SELECT COUNT(*) AS c FROM authors WHERE repo_id=? AND "
+            "((name=? AND email=?) OR (name=? AND email=?))",
+            (repo_id, source[0], source[1], target[0], target[1]),
+        ).fetchone()["c"]
+        if count != 2:
+            return redirect(url_for("main.repo_page", repo_id=repo_id))
+        # reject merges that would create a cycle in the alias chain
+        seen = {source}
+        key = target
+        for _ in range(100):
+            if key in seen:
+                return redirect(url_for("main.repo_page", repo_id=repo_id))
+            seen.add(key)
+            link = con.execute(
+                "SELECT to_name, to_email FROM author_merges WHERE repo_id=? "
+                "AND from_name=? AND from_email=?",
+                (repo_id, key[0], key[1]),
+            ).fetchone()
+            if link is None:
+                break
+            key = (link["to_name"], link["to_email"])
+        with con:
+            con.execute(
+                "INSERT OR REPLACE INTO author_merges "
+                "(repo_id, from_name, from_email, to_name, to_email) "
+                "VALUES (?,?,?,?,?)",
+                (repo_id, source[0], source[1], target[0], target[1]),
+            )
+    finally:
+        con.close()
+    metrics_mod.invalidate(repo_id)
+    return redirect(url_for("main.repo_page", repo_id=repo_id))
+
+
+@bp.post("/repo/<int:repo_id>/unmerge")
+def unmerge_authors(repo_id):
+    """Remove one manual author merge (dashboard action)."""
+    merge_id = request.form.get("merge_id", type=int)
+    con = db.connect()
+    try:
+        with con:
+            con.execute(
+                "DELETE FROM author_merges WHERE id=? AND repo_id=?",
+                (merge_id, repo_id),
+            )
+    finally:
+        con.close()
+    metrics_mod.invalidate(repo_id)
+    return redirect(url_for("main.repo_page", repo_id=repo_id))
 
 
 # ------------------------------------------------------------------ ingestion

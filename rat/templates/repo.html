@@ -179,6 +179,50 @@
   </tbody>
 </table>
 
+{% if merges %}
+<h2>Manual author merging</h2>
+<table id="merges-table">
+  <thead>
+    <tr><th>Author identity</th><th>Merged into</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for m in merges %}
+    <tr>
+      <td>{{ m['from_name'] }} <span class="muted">&lt;{{ m['from_email'] }}&gt;</span></td>
+      <td>{{ m['to_name'] }} <span class="muted">&lt;{{ m['to_email'] }}&gt;</span></td>
+      <td>
+        <form method="post" action="{{ url_for('main.unmerge_authors', repo_id=repo['id']) }}">
+          <input type="hidden" name="merge_id" value="{{ m['id'] }}">
+          <button type="submit">Unmerge</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if not author_filter and authors_options|length >= 2 %}
+<h2>Merge authors</h2>
+<form method="post" action="{{ url_for('main.merge_authors', repo_id=repo['id']) }}" class="filter-bar">
+  <label>Author identity
+    <select name="from">
+      {% for a in authors_options %}
+      <option value="{{ a['name'] }} <{{ a['email'] }}>">{{ a['name'] }} &lt;{{ a['email'] }}&gt;</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>into
+    <select name="to">
+      {% for a in authors_options %}
+      <option value="{{ a['name'] }} <{{ a['email'] }}>">{{ a['name'] }} &lt;{{ a['email'] }}&gt;</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button type="submit">Merge</button>
+</form>
+{% endif %}
+
 <h2>Authors {% if author_filter %}<span class="muted small">— filtered</span>{% endif %}</h2>
 <input type="search" class="table-search" data-table="authors-table" placeholder="Search authors…">
 <table id="authors-table" data-sortable>
