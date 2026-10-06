@@ -44,7 +44,7 @@ tr:hover td { background: rgba(91, 157, 255, 0.06); }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
 @media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
 form label { display: block; margin: 10px 0; color: var(--muted); font-size: 13px; }
-input[type=text], input[type=file], input[type=search] {
+input[type=text], input[type=file], input[type=search], input[type=date] {
   display: block;
   width: 100%;
   margin-top: 4px;
@@ -125,6 +125,7 @@ select {
 }
 .filter-bar { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; margin: 14px 0 6px; }
 .filter-bar label { margin: 0; }
+.filter-bar input[type=date] { width: 170px; }
 .table-search { max-width: 340px; margin: 2px 0 4px; }
 .crumbs { color: var(--muted); font-size: 13.5px; margin: 4px 0 14px; }
 .banner {

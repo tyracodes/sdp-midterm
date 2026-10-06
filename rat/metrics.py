@@ -31,28 +31,56 @@ def _metrics(added, removed, modifications, commits):
     }
 
 
-def compute(con, repo_id, version):
-    """Compute (and memoise) all metrics for a repository."""
-    key = (repo_id, version)
+def compute(con, repo_id, version, commit_range=None):
+    """Compute (and memoise) all metrics for a repository.
+
+    commit_range is an optional (since_ts, until_ts) pair selecting a subset
+    of H: since is inclusive, until exclusive, matching the specification's
+    H_i,j / H_t commit sets. None means the full commit set.
+    """
+    key = (repo_id, version, commit_range)
     with _cache_lock:
         cached = _cache.get(key)
     if cached is not None:
         return cached
-    result = _compute(con, repo_id)
+    result = _compute(con, repo_id, commit_range)
     with _cache_lock:
         _cache[key] = result
     return result
 
 
-def _compute(con, repo_id):
+def _compute(con, repo_id, commit_range=None):
+    where = ""
+    params = [repo_id]
+    if commit_range is not None:
+        since_ts, until_ts = commit_range
+        if since_ts is not None:
+            where += " AND committer_ts >= ?"
+            params.append(since_ts)
+        if until_ts is not None:
+            where += " AND committer_ts < ?"
+            params.append(until_ts)
+
     commits = con.execute(
-        "SELECT COUNT(*) AS c FROM commits WHERE repo_id=?", (repo_id,)
+        "SELECT COUNT(*) AS c FROM commits WHERE repo_id=?" + where, params
     ).fetchone()["c"]
+
+    member_author_ids = None
+    if commit_range is not None:
+        member_author_ids = {
+            row["author_id"]
+            for row in con.execute(
+                "SELECT DISTINCT author_id FROM commits WHERE repo_id=?" + where,
+                params,
+            )
+        }
 
     authors = {}
     for row in con.execute(
         "SELECT id, name, email FROM authors WHERE repo_id=?", (repo_id,)
     ):
+        if member_author_ids is not None and row["id"] not in member_author_ids:
+            continue
         authors[row["id"]] = {
             "name": row["name"],
             "email": row["email"],
@@ -62,8 +90,10 @@ def _compute(con, repo_id):
             "modified_shas": set(),
         }
     for row in con.execute(
-        "SELECT author_id, COUNT(*) AS c FROM commits WHERE repo_id=? GROUP BY author_id",
-        (repo_id,),
+        "SELECT author_id, COUNT(*) AS c FROM commits WHERE repo_id=?"
+        + where
+        + " GROUP BY author_id",
+        params,
     ):
         if row["author_id"] in authors:
             authors[row["author_id"]]["commits"] = row["c"]
@@ -71,7 +101,7 @@ def _compute(con, repo_id):
     sha_author = {
         row["sha"]: row["author_id"]
         for row in con.execute(
-            "SELECT sha, author_id FROM commits WHERE repo_id=?", (repo_id,)
+            "SELECT sha, author_id FROM commits WHERE repo_id=?" + where, params
         )
     }
 
@@ -106,6 +136,8 @@ def _compute(con, repo_id):
     )
     for row in rows:
         sha = row["sha"]
+        if commit_range is not None and sha not in sha_author:
+            continue
         if sha != live_sha:
             close_commit()
             live_sha = sha

@@ -51,6 +51,10 @@ and `repos/<slug>/`.
 8. The repository page includes **charts** (unfiltered view): top files and
    top authors by churn (bars) and monthly added/removed lines over time
    (line chart), rendered as dependency-free inline SVG.
+9. The repository page supports **commit-set filtering**: pick a date range
+   (from / until, until is exclusive, as in the spec's H_i,j sets) and every
+   metric, table and author filter recomputes over that commit subset.
+   Author and commit-set filters can be combined.
 
 ## Metrics
 
@@ -114,8 +118,9 @@ Flask (single process) + SQLite + the `git` CLI.
 
 ## Current limitations (planned next steps)
 
-- Filtering: author and file/directory (drill-down) are supported; time range
-  and manual commit-list commit sets are not implemented yet.
+- Filtering: repository (overview), author, file/directory (drill-down) and
+  commit set by time range (from/until dates) are supported; a manually
+  selected commit list is not implemented yet.
 - Author merging: the repository's `.mailmap` is honoured automatically
   (via `%aN`/`%aE`); manual author merging is not available yet.
 - File table shows the top 500 rows by churn in the UI (API returns all).

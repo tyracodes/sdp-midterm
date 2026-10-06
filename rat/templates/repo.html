@@ -25,6 +25,27 @@
 {% else %}
 
 <form method="get" action="{{ url_for('main.repo_page', repo_id=repo['id']) }}" class="filter-bar">
+  <label>Commit set — from
+    <input type="date" name="since" value="{{ filter_since }}">
+  </label>
+  <label>until (exclusive)
+    <input type="date" name="until" value="{{ filter_until }}">
+  </label>
+  <button type="submit">Apply commit set</button>
+  {% if author_filter %}<input type="hidden" name="author" value="{{ author_filter }}">{% endif %}
+</form>
+
+{% if commit_set_active %}
+<div class="banner">
+  Commit set:
+  {% if filter_since %}from {{ filter_since }}{% else %}from the beginning{% endif %}
+  {% if filter_until %}until {{ filter_until }} (exclusive){% else %}to now{% endif %} ·
+  |H| = {{ "{:,}".format(summary['commits']) }} commits
+  <a class="clear-filter" href="{{ url_for('main.repo_page', repo_id=repo['id']) }}">Clear commit-set filter</a>
+</div>
+{% endif %}
+
+<form method="get" action="{{ url_for('main.repo_page', repo_id=repo['id']) }}" class="filter-bar">
   <label>Author filter
     <select name="author" onchange="this.form.submit()">
       <option value="">All authors</option>
@@ -36,6 +57,8 @@
   {% if author_filter %}
   <a class="clear-filter" href="{{ url_for('main.repo_page', repo_id=repo['id']) }}">Clear filter</a>
   {% endif %}
+  {% if filter_since %}<input type="hidden" name="since" value="{{ filter_since }}">{% endif %}
+  {% if filter_until %}<input type="hidden" name="until" value="{{ filter_until }}">{% endif %}
 </form>
 
 {% if author_filter %}

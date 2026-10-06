@@ -1,8 +1,10 @@
 """HTTP endpoints: pages and JSON API."""
+import calendar
 import os
 import shutil
 import time
 import uuid
+from datetime import datetime
 
 from flask import (
     Blueprint,
@@ -67,6 +69,25 @@ def _author_filter():
     return raw, raw, None
 
 
+def _commit_range():
+    """Parse ?since=/?until= (YYYY-MM-DD); since inclusive, until exclusive."""
+    def _parse(name):
+        raw = (request.args.get(name) or "").strip()
+        if not raw:
+            return None
+        try:
+            parsed = datetime.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+        return calendar.timegm(parsed.timetuple())
+
+    since_ts = _parse("since")
+    until_ts = _parse("until")
+    if since_ts is None and until_ts is None:
+        return None
+    return (since_ts, until_ts)
+
+
 _timeline_cache = {}
 
 
@@ -101,9 +122,13 @@ def repo_page(repo_id):
         ).fetchone()
         context = {"repo": repo, "job": job, "author_filter": ""}
         if repo["status"] == "ready":
-            data = metrics_mod.compute(con, repo_id, repo["head_sha"])
+            commit_range = _commit_range()
+            data = metrics_mod.compute(con, repo_id, repo["head_sha"], commit_range)
             context["summary"] = data["summary"]
             context["authors_options"] = data["authors"]
+            context["filter_since"] = request.args.get("since", "")
+            context["filter_until"] = request.args.get("until", "")
+            context["commit_set_active"] = commit_range is not None
             author_filter, author_name, author_email = _author_filter()
             context["author_filter"] = author_filter
             context["author_summary"] = None
@@ -141,25 +166,26 @@ def repo_page(repo_id):
                 context["files_total"] = len(data["files"])
                 context["dirs"] = data["dirs"]
                 context["authors"] = data["authors"]
-                # charts are repository-wide, so they only render in the
-                # unfiltered view
-                context["chart_data"] = {
-                    "files": [
-                        {"path": row["path"], "churn": row["churn"]}
-                        for row in data["files"][:10]
-                        if row["churn"] > 0
-                    ],
-                    "authors": [
-                        {
-                            "name": row["name"],
-                            "churn": row["churn"],
-                            "ownership": row["ownership"],
-                        }
-                        for row in data["authors"][:10]
-                        if row["churn"] > 0
-                    ],
-                    "timeline": _timeline(con, repo_id, repo["head_sha"]),
-                }
+                if commit_range is None:
+                    # charts are repository-wide, so they only render in the
+                    # unfiltered view
+                    context["chart_data"] = {
+                        "files": [
+                            {"path": row["path"], "churn": row["churn"]}
+                            for row in data["files"][:10]
+                            if row["churn"] > 0
+                        ],
+                        "authors": [
+                            {
+                                "name": row["name"],
+                                "churn": row["churn"],
+                                "ownership": row["ownership"],
+                            }
+                            for row in data["authors"][:10]
+                            if row["churn"] > 0
+                        ],
+                        "timeline": _timeline(con, repo_id, repo["head_sha"]),
+                    }
         return render_template("repo.html", **context)
     finally:
         con.close()
