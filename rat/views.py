@@ -118,6 +118,54 @@ def _commit_range():
     return (since_ts, until_ts)
 
 
+def _commit_selection(con, repo_id):
+    """Parse ?commits= — comma/space separated full or abbreviated SHAs.
+
+    Returns (resolved_shas, provided_count) or (None, 0) when no valid
+    tokens were given. The manually selected list is the spec's alternative
+    commit-set form to the time range.
+    """
+    raw = (request.args.get("commits") or "").strip()
+    if not raw:
+        return None, 0
+    tokens = []
+    seen = set()
+    for token in raw.replace(",", " ").split():
+        token = token.strip().lower()
+        if (
+            4 <= len(token) <= 40
+            and token not in seen
+            and all(ch in "0123456789abcdef" for ch in token)
+        ):
+            seen.add(token)
+            tokens.append(token)
+        if len(tokens) >= 200:
+            break
+    if not tokens:
+        return None, 0
+    conds = []
+    params = [repo_id]
+    fulls = [token for token in tokens if len(token) == 40]
+    if fulls:
+        conds.append("sha IN (%s)" % ",".join("?" for _ in fulls))
+        params.extend(fulls)
+    prefixes = [token for token in tokens if len(token) < 40]
+    if prefixes:
+        conds.append("(" + " OR ".join("sha LIKE ?" for _ in prefixes) + ")")
+        params.extend(token + "%" for token in prefixes)
+    resolved = [
+        row["sha"]
+        for row in con.execute(
+            "SELECT DISTINCT sha FROM commits WHERE repo_id=? AND ("
+            + " OR ".join(conds)
+            + ")",
+            params,
+        )
+    ]
+    resolved.sort()
+    return resolved, len(tokens)
+
+
 _timeline_cache = {}
 
 
@@ -152,13 +200,23 @@ def repo_page(repo_id):
         ).fetchone()
         context = {"repo": repo, "job": job, "author_filter": ""}
         if repo["status"] == "ready":
-            commit_range = _commit_range()
-            data = metrics_mod.compute(con, repo_id, repo["head_sha"], commit_range)
+            commit_selection, commit_provided = _commit_selection(con, repo_id)
+            if commit_selection is not None:
+                commit_range = None
+            else:
+                commit_range = _commit_range()
+            data = metrics_mod.compute(
+                con, repo_id, repo["head_sha"], commit_range, commit_selection
+            )
             context["summary"] = data["summary"]
             context["authors_options"] = data["authors"]
             context["filter_since"] = request.args.get("since", "")
             context["filter_until"] = request.args.get("until", "")
-            context["commit_set_active"] = commit_range is not None
+            context["commit_selection"] = commit_selection
+            context["commit_provided"] = commit_provided
+            context["commit_set_active"] = (
+                commit_range is not None or commit_selection is not None
+            )
             context["merges"] = con.execute(
                 "SELECT id, from_name, from_email, to_name, to_email "
                 "FROM author_merges WHERE repo_id=? ORDER BY id",
@@ -201,7 +259,7 @@ def repo_page(repo_id):
                 context["files_total"] = len(data["files"])
                 context["dirs"] = data["dirs"]
                 context["authors"] = data["authors"]
-                if commit_range is None:
+                if commit_range is None and commit_selection is None:
                     # charts are repository-wide, so they only render in the
                     # unfiltered view
                     top_dirs = sorted(

@@ -31,19 +31,26 @@ def _metrics(added, removed, modifications, commits):
     }
 
 
-def compute(con, repo_id, version, commit_range=None):
+def compute(con, repo_id, version, commit_range=None, commit_shas=None):
     """Compute (and memoise) all metrics for a repository.
 
     commit_range is an optional (since_ts, until_ts) pair selecting a subset
     of H: since is inclusive, until exclusive, matching the specification's
-    H_i,j / H_t commit sets. None means the full commit set.
+    H_i,j / H_t commit sets. commit_shas is an optional explicit list of
+    commit hashes selecting H by manual selection (takes precedence).
+    None for both means the full commit set.
     """
-    key = (repo_id, version, commit_range)
+    key = (
+        repo_id,
+        version,
+        commit_range,
+        tuple(commit_shas) if commit_shas is not None else None,
+    )
     with _cache_lock:
         cached = _cache.get(key)
     if cached is not None:
         return cached
-    result = _compute(con, repo_id, commit_range)
+    result = _compute(con, repo_id, commit_range, commit_shas)
     with _cache_lock:
         _cache[key] = result
     return result
@@ -56,10 +63,18 @@ def invalidate(repo_id):
             del _cache[key]
 
 
-def _compute(con, repo_id, commit_range=None):
+def _compute(con, repo_id, commit_range=None, commit_shas=None):
     where = ""
     params = [repo_id]
-    if commit_range is not None:
+    if commit_shas is not None:
+        # Manually selected commit set: H is the chosen hashes intersected
+        # with the repository's non-merge commits reachable from HEAD.
+        if commit_shas:
+            where += " AND sha IN (%s)" % ",".join("?" for _ in commit_shas)
+            params.extend(commit_shas)
+        else:
+            where += " AND 0"
+    elif commit_range is not None:
         since_ts, until_ts = commit_range
         if since_ts is not None:
             where += " AND committer_ts >= ?"
@@ -106,7 +121,7 @@ def _compute(con, repo_id, commit_range=None):
             representative[identity] = synthetic
 
     member_author_ids = None
-    if commit_range is not None:
+    if commit_range is not None or commit_shas is not None:
         member_author_ids = {
             row["author_id"]
             for row in con.execute(
@@ -184,7 +199,7 @@ def _compute(con, repo_id, commit_range=None):
     )
     for row in rows:
         sha = row["sha"]
-        if commit_range is not None and sha not in sha_author:
+        if member_ids is not None and sha not in sha_author:
             continue
         if sha != live_sha:
             close_commit()

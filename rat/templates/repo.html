@@ -35,12 +35,25 @@
   {% if author_filter %}<input type="hidden" name="author" value="{{ author_filter }}">{% endif %}
 </form>
 
+<form method="get" action="{{ url_for('main.repo_page', repo_id=repo['id']) }}" class="filter-bar">
+  <label>Commit set — manual SHA list
+    <input type="text" name="commits" size="44" placeholder="e.g. 6d9f2443ab07 c8f5d0b1" value="{{ commit_selection|join(' ') if commit_selection else '' }}">
+  </label>
+  <button type="submit">Apply commit list</button>
+  {% if author_filter %}<input type="hidden" name="author" value="{{ author_filter }}">{% endif %}
+</form>
+
 {% if commit_set_active %}
 <div class="banner">
+  {% if commit_selection is not none %}
+  Commit set: manual selection —
+  |H| = {{ "{:,}".format(summary['commits']) }} commit{{ 's' if summary['commits'] != 1 }} (from {{ commit_provided }} provided hash{{ 'es' if commit_provided != 1 }})
+  {% else %}
   Commit set:
   {% if filter_since %}from {{ filter_since }}{% else %}from the beginning{% endif %}
   {% if filter_until %}until {{ filter_until }} (exclusive){% else %}to now{% endif %} ·
   |H| = {{ "{:,}".format(summary['commits']) }} commits
+  {% endif %}
   <a class="clear-filter" href="{{ url_for('main.repo_page', repo_id=repo['id']) }}">Clear commit-set filter</a>
 </div>
 {% endif %}
@@ -59,6 +72,7 @@
   {% endif %}
   {% if filter_since %}<input type="hidden" name="since" value="{{ filter_since }}">{% endif %}
   {% if filter_until %}<input type="hidden" name="until" value="{{ filter_until }}">{% endif %}
+  {% if commit_selection is not none %}<input type="hidden" name="commits" value="{{ commit_selection|join(' ') }}">{% endif %}
 </form>
 
 {% if author_filter %}

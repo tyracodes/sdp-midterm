@@ -53,10 +53,12 @@ and `repos/<slug>/`.
    top authors by churn (bars), a **treemap** of top-level directories sized by
    churn, and monthly added/removed lines over time (line chart), all rendered
    as dependency-free inline SVG.
-9. The repository page supports **commit-set filtering**: pick a date range
-   (from / until, until is exclusive, as in the spec's H_i,j sets) and every
-   metric, table and author filter recomputes over that commit subset.
-   Author and commit-set filters can be combined.
+9. The repository page supports **commit-set filtering** in both spec forms:
+   pick a date range (from / until, until is exclusive, as in the spec's
+   H_i,j sets) **or** paste a manually selected list of commit hashes (full
+   or abbreviated, comma/space separated); every metric, table and author
+   filter recomputes over that commit subset. Author and commit-set filters
+   can be combined.
 10. **Manual author merging** is available on the repository page: choose an
     author identity and the identity to merge it into (chains resolve
     transitively, cycles are rejected); merged identities aggregate as a
@@ -143,8 +145,8 @@ Flask (single process) + SQLite + the `git` CLI.
 ## Current limitations (planned next steps)
 
 - Filtering: repository (overview), author, file/directory (drill-down) and
-  commit set by time range (from/until dates) are supported; a manually
-  selected commit list is not implemented yet.
+  commit sets are supported in both spec forms (time range and manually
+  selected commit list).
 - Author merging: `.mailmap` is honoured automatically (via `%aN`/`%aE`)
   and manual merges are configured on the repository page; merges belong to
   the ingested repository row and are not carried over if the same project
