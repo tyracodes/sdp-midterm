@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{{ repo['name'] }}{% endblock %}
+{% block content %}
+<h1>
+  {{ repo['name'] }}
+  <span class="badge {{ 'ok' if repo['status'] == 'ready' else ('err' if repo['status'] == 'error' else 'run') }}">{{ repo['status'] }}</span>
+</h1>
+<p class="muted mono">
+  {{ repo['source_type'] }}{% if repo['source'] %} · {{ repo['source'] }}{% endif %}{% if repo['head_sha'] %} · HEAD {{ repo['head_sha'][:12] }}{% endif %}
+</p>
+
+{% if repo['status'] == 'error' %}
+  <div class="card">
+    <h2>Ingestion failed</h2>
+    <div class="error">{{ repo['error'] }}</div>
+  </div>
+{% elif repo['status'] != 'ready' %}
+  <div class="card">
+    <h2>Ingesting…</h2>
+    <div class="progress" data-job-id="{{ job['id'] }}">
+      <div class="bar" style="width:0%"></div>
+      <span class="progress-text">{{ job['message'] or 'Working...' }}</span>
+    </div>
+  </div>
+{% else %}
+
+<section class="cards">
+  <div class="kpi"><div class="kpi-label">Commits |H|</div><div class="kpi-value">{{ "{:,}".format(summary['commits']) }}</div></div>
+  <div class="kpi"><div class="kpi-label">Authors</div><div class="kpi-value">{{ "{:,}".format(summary['authors']) }}</div></div>
+  <div class="kpi"><div class="kpi-label">Files</div><div class="kpi-value">{{ "{:,}".format(summary['files']) }}</div></div>
+  <div class="kpi"><div class="kpi-label">Directories</div><div class="kpi-value">{{ "{:,}".format(summary['directories']) }}</div></div>
+  <div class="kpi"><div class="kpi-label">Added lines</div><div class="kpi-value">{{ "{:,}".format(summary['added']) }}</div></div>
+  <div class="kpi"><div class="kpi-label">Removed lines</div><div class="kpi-value">{{ "{:,}".format(summary['removed']) }}</div></div>
+  <div class="kpi"><div class="kpi-label">Growth</div><div class="kpi-value">{{ "{:,}".format(summary['growth']) }}</div></div>
+  <div class="kpi"><div class="kpi-label">Churn</div><div class="kpi-value">{{ "{:,}".format(summary['churn']) }}</div></div>
+  <div class="kpi"><div class="kpi-label">Modifications</div><div class="kpi-value">{{ "{:,}".format(summary['modifications']) }}</div></div>
+  <div class="kpi"><div class="kpi-label">Modification frequency</div><div class="kpi-value">{{ "%.4f"|format(summary['modification_frequency']) }}</div></div>
+  <div class="kpi"><div class="kpi-label">Churn rate (lines/commit)</div><div class="kpi-value">{{ "%.4f"|format(summary['churn_rate']) }}</div></div>
+</section>
+
+<h2>Directories</h2>
+<table>
+  <thead>
+    <tr><th>Directory</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Mods</th><th>Mod freq</th><th>Churn rate</th></tr>
+  </thead>
+  <tbody>
+    {% for d in dirs %}
+    <tr>
+      <td class="mono">{{ '/' if d['path'] == '' else d['path'] ~ '/' }}</td>
+      <td>{{ "{:,}".format(d['added']) }}</td>
+      <td>{{ "{:,}".format(d['removed']) }}</td>
+      <td>{{ "{:,}".format(d['growth']) }}</td>
+      <td>{{ "{:,}".format(d['churn']) }}</td>
+      <td>{{ "{:,}".format(d['modifications']) }}</td>
+      <td>{{ "%.4f"|format(d['modification_frequency']) }}</td>
+      <td>{{ "%.4f"|format(d['churn_rate']) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>
+  Files
+  {% if files_total > files|length %}
+    <span class="muted small">(top {{ files|length }} of {{ "{:,}".format(files_total) }} by churn)</span>
+  {% endif %}
+</h2>
+<table>
+  <thead>
+    <tr><th>File</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Mods</th><th>Mod freq</th><th>Churn rate</th></tr>
+  </thead>
+  <tbody>
+    {% for f in files %}
+    <tr>
+      <td class="mono">{{ f['path'] }}</td>
+      <td>{{ "{:,}".format(f['added']) }}</td>
+      <td>{{ "{:,}".format(f['removed']) }}</td>
+      <td>{{ "{:,}".format(f['growth']) }}</td>
+      <td>{{ "{:,}".format(f['churn']) }}</td>
+      <td>{{ "{:,}".format(f['modifications']) }}</td>
+      <td>{{ "%.4f"|format(f['modification_frequency']) }}</td>
+      <td>{{ "%.4f"|format(f['churn_rate']) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Authors</h2>
+<table>
+  <thead>
+    <tr><th>Author</th><th>Email</th><th>Commits</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Mods</th><th>Ownership</th></tr>
+  </thead>
+  <tbody>
+    {% for a in authors %}
+    <tr>
+      <td>{{ a['name'] }}</td>
+      <td class="muted">{{ a['email'] }}</td>
+      <td>{{ "{:,}".format(a['commits']) }}</td>
+      <td>{{ "{:,}".format(a['added']) }}</td>
+      <td>{{ "{:,}".format(a['removed']) }}</td>
+      <td>{{ "{:,}".format(a['growth']) }}</td>
+      <td>{{ "{:,}".format(a['churn']) }}</td>
+      <td>{{ "{:,}".format(a['modifications']) }}</td>
+      <td>{{ "%.4f"|format(a['ownership']) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endif %}
+{% endblock %}

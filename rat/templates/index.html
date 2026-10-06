@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Repositories{% endblock %}
+{% block content %}
+<h1>Repositories</h1>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>Upload a zip</h2>
+    <p class="hint">The archive must contain the repository's <code>.git</code> directory.</p>
+    <form id="zip-form" enctype="multipart/form-data">
+      <label>Name (optional)
+        <input type="text" name="name" placeholder="defaults to the zip file name">
+      </label>
+      <label>Zip file
+        <input type="file" name="file" accept=".zip" required>
+      </label>
+      <button type="submit">Upload and ingest</button>
+    </form>
+  </section>
+  <section class="card">
+    <h2>Clone a repository</h2>
+    <p class="hint">The repository URL is cloned with its full history.</p>
+    <form id="url-form">
+      <label>Name (optional)
+        <input type="text" name="name" placeholder="defaults to the repository name">
+      </label>
+      <label>Repository URL
+        <input type="text" name="url" placeholder="https://github.com/owner/repo.git" required>
+      </label>
+      <button type="submit">Clone and ingest</button>
+    </form>
+  </section>
+</div>
+<div id="form-error" class="error hidden"></div>
+
+{% if repos %}
+<table>
+  <thead>
+    <tr>
+      <th>Name</th><th>Source</th><th>Status</th><th>Commits</th><th>HEAD</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in repos %}
+    <tr>
+      <td><a href="{{ url_for('main.repo_page', repo_id=r['id']) }}">{{ r['name'] }}</a></td>
+      <td class="muted">{{ r['source_type'] }}{% if r['source'] %} · {{ r['source'] }}{% endif %}</td>
+      <td>
+        {% if r['status'] == 'ready' %}
+          <span class="badge ok">ready</span>
+        {% elif r['status'] == 'error' %}
+          <span class="badge err">error</span>
+          <div class="error small">{{ r['error'] }}</div>
+        {% else %}
+          <div class="progress" data-job-id="{{ r['job_id'] }}">
+            <div class="bar" style="width:0%"></div>
+            <span class="progress-text">{{ r['job_message'] or 'Working...' }}</span>
+          </div>
+        {% endif %}
+      </td>
+      <td>{{ r['commit_count'] if r['status'] == 'ready' else '' }}</td>
+      <td class="mono">{{ (r['head_sha'] or '')[:8] }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No repositories yet. Add one above.</p>
+{% endif %}
+{% endblock %}
