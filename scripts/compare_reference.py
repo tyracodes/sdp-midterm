@@ -50,6 +50,15 @@ def close(a, b):
     return abs(a - b) <= 1e-9 * scale
 
 
+def split_author(who):
+    """Parse 'Name <email>' into (name, email)."""
+    name, email = who, ""
+    if "<" in who and who.endswith(">"):
+        name, email = who.rsplit("<", 1)
+        name, email = name.strip(), email[:-1].strip()
+    return name, email
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", required=True, help="RAT repo name")
@@ -75,6 +84,14 @@ def main():
     for a in get(f"{base}/api/repos/{rid}/authors"):
         key = a.get("email") or ""
         authors[(a["name"], key)] = a
+    file_authors = {
+        (norm_path(f["path"]), f["name"], f.get("email") or ""): f
+        for f in get(f"{base}/api/repos/{rid}/file-authors")
+    }
+    dir_authors = {
+        (norm_path(f["path"]), f["name"], f.get("email") or ""): f
+        for f in get(f"{base}/api/repos/{rid}/dir-authors")
+    }
 
     mismatches = 0
 
@@ -104,12 +121,13 @@ def main():
             elif otype == "file" and who == "ALL":
                 got = files.get(norm_path(path), {}).get(k)
             elif otype == "repository" and who not in ("ALL", ""):
-                # author row: "Name <email>"
-                name, email = who, ""
-                if "<" in who and who.endswith(">"):
-                    name, email = who.rsplit("<", 1)
-                    name, email = name.strip(), email[:-1].strip()
-                got = authors.get((name, email), {}).get(k)
+                got = authors.get(split_author(who), {}).get(k)
+            elif otype == "file" and who not in ("ALL", ""):
+                got = file_authors.get((norm_path(path),) + split_author(who), {}).get(
+                    k
+                )
+            elif otype == "directory" and who not in ("ALL", ""):
+                got = dir_authors.get((norm_path(path),) + split_author(who), {}).get(k)
             else:
                 continue
 

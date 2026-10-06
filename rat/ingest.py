@@ -25,7 +25,9 @@ JOB_LOCK = threading.Lock()
 
 SLUG_RE = re.compile(r"[^a-z0-9]+")
 
-LOG_FORMAT = "C%x00%H%x00%ct%x00%an%x00%ae%x00%P"
+# %aN/%aE are mailmap-aware: author identities are canonicalised exactly as
+# git-shortlog would (the repo's .mailmap is honoured, incl. bare mirrors).
+LOG_FORMAT = "C%x00%H%x00%ct%x00%aN%x00%aE%x00%P"
 
 
 class IngestError(Exception):
@@ -69,7 +71,8 @@ def iter_log(stream):
 
     Emits ("commit", sha, committer_ts, author_name, author_email, parent)
     followed by ("file", sha, path, added, removed) events. Renames are
-    attributed to the new path; binary entries (numstat "-") are skipped.
+    attributed to the new path; the old path is kept as a zero-metric object.
+    Binary entries (numstat "-") are skipped.
     """
     tokens = _tokens(stream)
     token = next(tokens, None)
@@ -120,14 +123,21 @@ def iter_log(stream):
                 if old_b is None or new_b is None:
                     raise IngestError("git log stream truncated inside a rename entry")
                 path_b = new_b
+                old_path_b = old_b
             else:
                 path_b = rest
+                old_path_b = None
             if added_b != b"-":
                 try:
                     added = int(added_b)
                     removed = int(removed_b)
                 except ValueError:
                     raise IngestError("git log stream malformed: bad numstat numbers")
+                if old_path_b is not None and old_path_b != path_b:
+                    # the rename source still exists in the numstat stream (its
+                    # lines are attributed to the new path); keep it as an
+                    # object with zero metrics, mirroring the reference output.
+                    yield ("file", sha, old_path_b.decode("utf-8", "replace"), 0, 0)
                 yield ("file", sha, path_b.decode("utf-8", "replace"), added, removed)
             token = next(tokens, None)
 

@@ -68,7 +68,7 @@ Useful for scripting and verification:
 
 - `GET /health`
 - `GET /api/repos` · `GET /api/repos/<id>` (includes `summary` when ready)
-- `GET /api/repos/<id>/files?limit=N` · `/dirs` · `/authors`
+- `GET /api/repos/<id>/files?limit=N` · `/dirs` · `/authors` · `/file-authors` · `/dir-authors`
 - `GET /api/jobs/<id>` (progress)
 - `POST /api/repos` (multipart: `name`? + `file` OR `url`)
 
@@ -86,10 +86,8 @@ python3 scripts/compare_reference.py --repo <name> --csv repo-references/<file>.
 ```
 
 Compares every row of a reference CSV (`repo,ref_sha,commit_set,object_type,
-path,author,added,removed,...`) against the live app API. Exit code 0 means the
-whole file matches. Note: reference CSVs also include per-author-per-file and
-per-author-per-directory rows, which the base app does not expose yet (the
-comparator only checks repository-level author rows).
+path,author,added,removed,...`) against the live app API, including per-author
+rows for file and directory objects. Exit code 0 means the whole file matches.
 
 ## Architecture
 
@@ -97,8 +95,8 @@ Flask (single process) + SQLite + the `git` CLI.
 
 - Ingestion streams `git log --no-merges --root --numstat -z -M50%` once per
   repository into two SQLite tables (`commits` — non-merge commits with
-  committer date and raw author identity; `file_stats` — per commit, per path
-  added/removed line counts).
+  committer date and mailmap-canonicalised author identity (via `%aN`/`%aE`);
+  `file_stats` — per commit, per path added/removed line counts).
 - All dashboard metrics are derived from those tables (single pass over
   `file_stats` with roll-ups) and memoised per repository.
 - Ingestion runs on a background thread with a job row for progress; one

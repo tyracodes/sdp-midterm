@@ -237,6 +237,30 @@ def repo_dirs(repo_id):
         con.close()
 
 
+@bp.get("/api/repos/<int:repo_id>/file-authors")
+def repo_file_authors(repo_id):
+    con = db.connect()
+    try:
+        repo, data = _repo_metrics_or_409(con, repo_id)
+        if data is None:
+            return _err("Repository is not ready yet.", 409)
+        return jsonify(data["file_authors"])
+    finally:
+        con.close()
+
+
+@bp.get("/api/repos/<int:repo_id>/dir-authors")
+def repo_dir_authors(repo_id):
+    con = db.connect()
+    try:
+        repo, data = _repo_metrics_or_409(con, repo_id)
+        if data is None:
+            return _err("Repository is not ready yet.", 409)
+        return jsonify(data["dir_authors"])
+    finally:
+        con.close()
+
+
 @bp.get("/api/repos/<int:repo_id>/authors")
 def repo_authors(repo_id):
     con = db.connect()

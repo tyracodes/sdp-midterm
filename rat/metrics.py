@@ -9,7 +9,8 @@ Computed quantities per object o (file, directory, root):
     added / removed lines, growth, churn               (commit-set sums)
     modifications n_H,o, modification frequency n/|H|, churn rate lambda/|H|
 Per author a and object o:
-    author modifications, author churn, ownership (churn share).
+    author modifications n_H,o,a, author line counts, ownership (churn share).
+These are computed for the whole repository as well as per file and directory.
 """
 import threading
 
@@ -76,6 +77,8 @@ def _compute(con, repo_id):
 
     files = {}  # path -> [added, removed, modifications]
     dirs = {}   # directory path ("" = root) -> [added, removed, modifications]
+    file_authored = {}  # (path, author_id) -> [added, removed, modifications]
+    dir_authored = {}   # (directory, author_id) -> [added, removed, modifications]
     total_added = 0
     total_removed = 0
     live_sha = None
@@ -90,6 +93,12 @@ def _compute(con, repo_id):
         changed_dirs.add("")  # the root directory changes when any file changes
         for directory in changed_dirs:
             dirs[directory][2] += 1
+        author_id = sha_author.get(live_sha)
+        if author_id is not None:
+            for path in changed_files:
+                file_authored[(path, author_id)][2] += 1
+            for directory in changed_dirs:
+                dir_authored[(directory, author_id)][2] += 1
 
     rows = con.execute(
         "SELECT sha, path, added, removed FROM file_stats WHERE repo_id=? ORDER BY sha",
@@ -107,12 +116,20 @@ def _compute(con, repo_id):
         path = row["path"]
         total_added += added
         total_removed += removed
+        author_id = sha_author.get(sha)
 
         entry = files.get(path)
         if entry is None:
             entry = files[path] = [0, 0, 0]
         entry[0] += added
         entry[1] += removed
+
+        if author_id is not None:
+            file_entry = file_authored.get((path, author_id))
+            if file_entry is None:
+                file_entry = file_authored[(path, author_id)] = [0, 0, 0]
+            file_entry[0] += added
+            file_entry[1] += removed
 
         parts = path.split("/")
         for depth in range(1, len(parts)):
@@ -122,18 +139,29 @@ def _compute(con, repo_id):
                 dir_entry = dirs[directory] = [0, 0, 0]
             dir_entry[0] += added
             dir_entry[1] += removed
+            if author_id is not None:
+                dir_entry_a = dir_authored.get((directory, author_id))
+                if dir_entry_a is None:
+                    dir_entry_a = dir_authored[(directory, author_id)] = [0, 0, 0]
+                dir_entry_a[0] += added
+                dir_entry_a[1] += removed
         root_entry = dirs.get("")
         if root_entry is None:
             root_entry = dirs[""] = [0, 0, 0]
         root_entry[0] += added
         root_entry[1] += removed
+        if author_id is not None:
+            root_entry_a = dir_authored.get(("", author_id))
+            if root_entry_a is None:
+                root_entry_a = dir_authored[("", author_id)] = [0, 0, 0]
+            root_entry_a[0] += added
+            root_entry_a[1] += removed
 
         if added + removed > 0:
             changed_files.add(path)
             for depth in range(1, len(parts)):
                 changed_dirs.add("/".join(parts[:depth]))
 
-        author_id = sha_author.get(sha)
         if author_id is not None:
             author = authors[author_id]
             author["added"] += added
@@ -185,9 +213,34 @@ def _compute(con, repo_id):
         author_list.append(row)
     author_list.sort(key=lambda item: (-item["churn"], item["name"]))
 
+    def object_author_rows(authored, totals):
+        rows = []
+        for (path, author_id), (added, removed, modifications) in authored.items():
+            churn = added + removed
+            author = authors.get(author_id)
+            if churn <= 0 or author is None:
+                continue
+            total = totals[path][0] + totals[path][1]
+            row = _metrics(added, removed, modifications, commits)
+            row.update(
+                {
+                    "path": path,
+                    "name": author["name"],
+                    "email": author["email"],
+                    "ownership": (churn / total) if total else 0.0,
+                }
+            )
+            rows.append(row)
+        rows.sort(key=lambda item: (item["path"], item["name"]))
+        return rows
+
     return {
         "summary": summary,
         "files": file_list,
         "dirs": dir_list,
         "authors": author_list,
+        "file_authors": object_author_rows(file_authored, files),
+        "dir_authors": [
+            row for row in object_author_rows(dir_authored, dirs) if row["path"]
+        ],
     }
