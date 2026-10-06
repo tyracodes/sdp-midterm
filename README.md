@@ -41,6 +41,13 @@ and `repos/<slug>/`.
    history (`git clone --mirror`).
 3. Ingestion runs in the background with live progress (clone → analyze).
 4. Open the repository page for the metric dashboard.
+5. **Filter** the dashboard by author (dropdown, deep-linkable via
+   `?author=<name> <email>`); the file/directory tables then show that
+   author's per-object metrics and ownership.
+6. **Drill down**: click any file or directory to open its detail page with
+   per-author breakdown (breadcrumbs, immediate children for directories).
+7. Tables can be **searched** (text box above each table) and **sorted**
+   (click a column header).
 
 ## Metrics
 
@@ -104,6 +111,8 @@ Flask (single process) + SQLite + the `git` CLI.
 
 ## Current limitations (planned next steps)
 
-- No filtering yet (time range, manual commit list, path, author).
-- No author merging yet (`.mailmap` / manual merge).
+- Filtering: author and file/directory (drill-down) are supported; time range
+  and manual commit-list commit sets are not implemented yet.
+- Author merging: the repository's `.mailmap` is honoured automatically
+  (via `%aN`/`%aE`); manual author merging is not available yet.
 - File table shows the top 500 rows by churn in the UI (API returns all).

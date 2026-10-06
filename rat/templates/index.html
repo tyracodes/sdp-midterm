@@ -37,7 +37,7 @@
 <table>
   <thead>
     <tr>
-      <th>Name</th><th>Source</th><th>Status</th><th>Commits</th><th>HEAD</th>
+      <th>Name</th><th>Source</th><th>Status</th><th>Commits</th><th>Metrics</th><th>HEAD</th>
     </tr>
   </thead>
   <tbody>
@@ -59,6 +59,7 @@
         {% endif %}
       </td>
       <td>{{ r['commit_count'] if r['status'] == 'ready' else '' }}</td>
+      <td class="kpi-cell"{% if r['status'] == 'ready' %} data-kpis-repo="{{ r['id'] }}" data-kpis-state="ready"{% endif %}>{% if r['status'] == 'ready' %}<span class="muted">…</span>{% endif %}</td>
       <td class="mono">{{ (r['head_sha'] or '')[:8] }}</td>
     </tr>
     {% endfor %}

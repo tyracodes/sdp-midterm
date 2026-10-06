@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}{{ path.rsplit('/', 1)[-1] if path else repo['name'] }}{% endblock %}
+{% block content %}
+
+<p class="crumbs">
+  <a href="{{ url_for('main.repo_page', repo_id=repo['id']) }}">{{ repo['name'] }}</a>
+  {% if obj_type == 'dir' %}
+    {% for c in crumbs %} / {% if loop.last %}{{ c }}{% else %}<a href="{{ url_for('main.browse_page', repo_id=repo['id'], type='dir', path=c) }}">{{ c }}</a>{% endif %}{% endfor %}
+  {% elif not not_found %}
+    {% for c in crumbs %} / <a href="{{ url_for('main.browse_page', repo_id=repo['id'], type='dir', path=c) }}">{{ c }}</a>{% endfor %}
+    / {{ path.rsplit('/', 1)[-1] }}
+  {% endif %}
+</p>
+
+{% if not_found %}
+<div class="card">
+  <h2>Object not found</h2>
+  <p class="muted">No {{ obj_type }} at path "{{ path }}" in this repository.</p>
+  <p><a href="{{ url_for('main.repo_page', repo_id=repo['id']) }}">← Back to {{ repo['name'] }}</a></p>
+</div>
+{% else %}
+
+<h1 class="mono">{{ path }}</h1>
+<p class="muted small">
+  {{ obj_type }}{% if obj_type == 'file' %} · in {{ (path.rsplit('/', 1)[0] + '/') if '/' in path else 'repository root' }}{% endif %}
+</p>
+
+<section class="cards">
+  <div class="kpi"><div class="kpi-label">Added lines</div><div class="kpi-value">{{ "{:,}".format(row['added']) }}</div></div>
+  <div class="kpi"><div class="kpi-label">Removed lines</div><div class="kpi-value">{{ "{:,}".format(row['removed']) }}</div></div>
+  <div class="kpi"><div class="kpi-label">Growth</div><div class="kpi-value">{{ "{:,}".format(row['growth']) }}</div></div>
+  <div class="kpi"><div class="kpi-label">Churn</div><div class="kpi-value">{{ "{:,}".format(row['churn']) }}</div></div>
+  <div class="kpi"><div class="kpi-label">Modifications</div><div class="kpi-value">{{ "{:,}".format(row['modifications']) }}</div></div>
+  <div class="kpi"><div class="kpi-label">Modification frequency</div><div class="kpi-value">{{ "%.4f"|format(row['modification_frequency']) }}</div></div>
+  <div class="kpi"><div class="kpi-label">Churn rate (lines/commit)</div><div class="kpi-value">{{ "%.4f"|format(row['churn_rate']) }}</div></div>
+</section>
+
+<h2>Authors on this {{ obj_type }} <span class="muted small">({{ author_rows|length }})</span></h2>
+{% if author_rows %}
+<table data-sortable>
+  <thead>
+    <tr><th>Author</th><th>Email</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Mods</th><th>Ownership</th></tr>
+  </thead>
+  <tbody>
+    {% for a in author_rows %}
+    <tr>
+      <td>{{ a['name'] }}</td>
+      <td class="muted">{{ a['email'] }}</td>
+      <td>{{ "{:,}".format(a['added']) }}</td>
+      <td>{{ "{:,}".format(a['removed']) }}</td>
+      <td>{{ "{:,}".format(a['growth']) }}</td>
+      <td>{{ "{:,}".format(a['churn']) }}</td>
+      <td>{{ "{:,}".format(a['modifications']) }}</td>
+      <td>{{ "%.4f"|format(a['ownership']) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No per-author changes recorded for this {{ obj_type }}.</p>
+{% endif %}
+
+{% if obj_type == 'dir' %}
+<h2>Subdirectories <span class="muted small">({{ child_dirs|length }})</span></h2>
+{% if child_dirs %}
+<input type="search" class="table-search" data-table="child-dirs-table" placeholder="Search subdirectories…">
+<table id="child-dirs-table" data-sortable>
+  <thead>
+    <tr><th>Directory</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Mods</th><th>Mod freq</th><th>Churn rate</th></tr>
+  </thead>
+  <tbody>
+    {% for d in child_dirs %}
+    <tr>
+      <td class="mono"><a href="{{ url_for('main.browse_page', repo_id=repo['id'], type='dir', path=d['path']) }}">{{ d['path'].rsplit('/', 1)[-1] ~ '/' }}</a></td>
+      <td>{{ "{:,}".format(d['added']) }}</td>
+      <td>{{ "{:,}".format(d['removed']) }}</td>
+      <td>{{ "{:,}".format(d['growth']) }}</td>
+      <td>{{ "{:,}".format(d['churn']) }}</td>
+      <td>{{ "{:,}".format(d['modifications']) }}</td>
+      <td>{{ "%.4f"|format(d['modification_frequency']) }}</td>
+      <td>{{ "%.4f"|format(d['churn_rate']) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No immediate subdirectories.</p>
+{% endif %}
+
+<h2>
+  Files
+  {% if child_files_total > child_files|length %}<span class="muted small">(top {{ child_files|length }} of {{ "{:,}".format(child_files_total) }} immediate children by churn)</span>{% else %}<span class="muted small">({{ child_files|length }} immediate children)</span>{% endif %}
+</h2>
+{% if child_files %}
+<input type="search" class="table-search" data-table="child-files-table" placeholder="Search files…">
+<table id="child-files-table" data-sortable>
+  <thead>
+    <tr><th>File</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Mods</th><th>Mod freq</th><th>Churn rate</th></tr>
+  </thead>
+  <tbody>
+    {% for f in child_files %}
+    <tr>
+      <td class="mono"><a href="{{ url_for('main.browse_page', repo_id=repo['id'], type='file', path=f['path']) }}">{{ f['path'].rsplit('/', 1)[-1] }}</a></td>
+      <td>{{ "{:,}".format(f['added']) }}</td>
+      <td>{{ "{:,}".format(f['removed']) }}</td>
+      <td>{{ "{:,}".format(f['growth']) }}</td>
+      <td>{{ "{:,}".format(f['churn']) }}</td>
+      <td>{{ "{:,}".format(f['modifications']) }}</td>
+      <td>{{ "%.4f"|format(f['modification_frequency']) }}</td>
+      <td>{{ "%.4f"|format(f['churn_rate']) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No files directly in this directory.</p>
+{% endif %}
+{% endif %}
+
+{% endif %}
+{% endblock %}

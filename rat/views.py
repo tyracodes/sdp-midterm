@@ -9,8 +9,10 @@ from flask import (
     abort,
     current_app,
     jsonify,
+    redirect,
     render_template,
     request,
+    url_for,
 )
 
 from . import db, ingest
@@ -54,6 +56,17 @@ def index():
     return render_template("index.html", repos=repos)
 
 
+def _author_filter():
+    """Parse the ?author= page parameter: 'Name <email>' or a bare name."""
+    raw = (request.args.get("author") or "").strip()
+    if not raw:
+        return "", None, None
+    if raw.endswith(">") and " <" in raw:
+        name, _, email = raw[:-1].rpartition(" <")
+        return raw, name, email
+    return raw, raw, None
+
+
 @bp.get("/repo/<int:repo_id>")
 def repo_page(repo_id):
     con = db.connect()
@@ -64,17 +77,121 @@ def repo_page(repo_id):
         job = con.execute(
             "SELECT * FROM jobs WHERE repo_id=? ORDER BY id DESC LIMIT 1", (repo_id,)
         ).fetchone()
-        context = {"repo": repo, "job": job}
+        context = {"repo": repo, "job": job, "author_filter": ""}
         if repo["status"] == "ready":
             data = metrics_mod.compute(con, repo_id, repo["head_sha"])
             context["summary"] = data["summary"]
-            context["files"] = data["files"][:500]
-            context["files_total"] = len(data["files"])
-            context["dirs"] = data["dirs"]
-            context["authors"] = data["authors"]
+            context["authors_options"] = data["authors"]
+            author_filter, author_name, author_email = _author_filter()
+            context["author_filter"] = author_filter
+            context["author_summary"] = None
+            if author_filter:
+                # Author-scoped view: reuse the per-author-by-object rollups
+                # already computed instead of recomputing metrics.
+                for author in data["authors"]:
+                    if author["name"] == author_name and (
+                        author_email is None or author["email"] == author_email
+                    ):
+                        context["author_summary"] = author
+                        break
+                files = [
+                    row
+                    for row in data["file_authors"]
+                    if row["name"] == author_name
+                    and (author_email is None or row["email"] == author_email)
+                ]
+                dirs = [
+                    row
+                    for row in data["dir_authors"]
+                    if row["name"] == author_name
+                    and (author_email is None or row["email"] == author_email)
+                ]
+                files.sort(key=lambda row: (-row["churn"], row["path"]))
+                dirs.sort(key=lambda row: row["path"])
+                context["files"] = files[:500]
+                context["files_total"] = len(files)
+                context["dirs"] = dirs
+                context["authors"] = (
+                    [context["author_summary"]] if context["author_summary"] else []
+                )
+            else:
+                context["files"] = data["files"][:500]
+                context["files_total"] = len(data["files"])
+                context["dirs"] = data["dirs"]
+                context["authors"] = data["authors"]
         return render_template("repo.html", **context)
     finally:
         con.close()
+
+
+@bp.get("/repo/<int:repo_id>/browse")
+def browse_page(repo_id):
+    """Read-only drill-down page for one file or directory."""
+    obj_type = request.args.get("type") or "file"
+    path = request.args.get("path") or ""
+    if obj_type not in ("file", "dir"):
+        abort(404)
+    con = db.connect()
+    try:
+        repo = con.execute("SELECT * FROM repos WHERE id=?", (repo_id,)).fetchone()
+        if repo is None:
+            abort(404)
+        if repo["status"] != "ready":
+            return redirect(url_for("main.repo_page", repo_id=repo_id))
+        data = metrics_mod.compute(con, repo_id, repo["head_sha"])
+    finally:
+        con.close()
+
+    if obj_type == "dir" and path == "":
+        return redirect(url_for("main.repo_page", repo_id=repo_id))
+
+    pool = data["files"] if obj_type == "file" else data["dirs"]
+    row = next((item for item in pool if item["path"] == path), None)
+    if row is None:
+        return (
+            render_template(
+                "object.html", repo=repo, obj_type=obj_type, path=path, not_found=True
+            ),
+            404,
+        )
+
+    authored = data["file_authors"] if obj_type == "file" else data["dir_authors"]
+    author_rows = [item for item in authored if item["path"] == path]
+    author_rows.sort(key=lambda item: (-item["churn"], item["name"]))
+
+    child_files = []
+    child_dirs = []
+    if obj_type == "dir":
+        prefix = path + "/"
+        for item in data["files"]:
+            if item["path"].startswith(prefix):
+                rest = item["path"][len(prefix):]
+                if rest and "/" not in rest:
+                    child_files.append(item)
+        for item in data["dirs"]:
+            if item["path"].startswith(prefix):
+                rest = item["path"][len(prefix):]
+                if rest and "/" not in rest:
+                    child_dirs.append(item)
+        child_files.sort(key=lambda item: (-item["churn"], item["path"]))
+        child_dirs.sort(key=lambda item: item["path"])
+
+    segments = path.split("/")[:-1] if obj_type == "file" else path.split("/")
+    crumbs = ["/".join(segments[: i + 1]) for i in range(len(segments))]
+
+    return render_template(
+        "object.html",
+        repo=repo,
+        obj_type=obj_type,
+        path=path,
+        not_found=False,
+        row=row,
+        author_rows=author_rows,
+        child_files=child_files[:500],
+        child_files_total=len(child_files),
+        child_dirs=child_dirs,
+        crumbs=crumbs,
+    )
 
 
 # ------------------------------------------------------------------ ingestion

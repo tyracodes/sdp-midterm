@@ -24,6 +24,37 @@
   </div>
 {% else %}
 
+<form method="get" action="{{ url_for('main.repo_page', repo_id=repo['id']) }}" class="filter-bar">
+  <label>Author filter
+    <select name="author" onchange="this.form.submit()">
+      <option value="">All authors</option>
+      {% for a in authors_options %}
+      <option value="{{ a['name'] }} <{{ a['email'] }}>" {% if author_filter == a['name'] ~ ' <' ~ a['email'] ~ '>' %}selected{% endif %}>{{ a['name'] }} · churn {{ "{:,}".format(a['churn']) }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  {% if author_filter %}
+  <a class="clear-filter" href="{{ url_for('main.repo_page', repo_id=repo['id']) }}">Clear filter</a>
+  {% endif %}
+</form>
+
+{% if author_filter %}
+<div class="banner">
+  {% if author_summary %}
+  <b>{{ author_summary['name'] }}</b> <span class="muted">&lt;{{ author_summary['email'] }}&gt;</span> —
+  {{ "{:,}".format(author_summary['commits']) }} commits ·
+  added {{ "{:,}".format(author_summary['added']) }} ·
+  removed {{ "{:,}".format(author_summary['removed']) }} ·
+  growth {{ "{:,}".format(author_summary['growth']) }} ·
+  churn {{ "{:,}".format(author_summary['churn']) }} ·
+  mods {{ "{:,}".format(author_summary['modifications']) }} ·
+  ownership {{ "%.4f"|format(author_summary['ownership']) }}
+  {% else %}
+  No author matches "{{ author_filter }}".
+  {% endif %}
+</div>
+{% endif %}
+
 <section class="cards">
   <div class="kpi"><div class="kpi-label">Commits |H|</div><div class="kpi-value">{{ "{:,}".format(summary['commits']) }}</div></div>
   <div class="kpi"><div class="kpi-label">Authors</div><div class="kpi-value">{{ "{:,}".format(summary['authors']) }}</div></div>
@@ -38,55 +69,77 @@
   <div class="kpi"><div class="kpi-label">Churn rate (lines/commit)</div><div class="kpi-value">{{ "%.4f"|format(summary['churn_rate']) }}</div></div>
 </section>
 
-<h2>Directories</h2>
-<table>
+<h2>Directories {% if author_filter %}<span class="muted small">— this author</span>{% endif %}</h2>
+<input type="search" class="table-search" data-table="dirs-table" placeholder="Search directories…">
+<table id="dirs-table" data-sortable>
   <thead>
-    <tr><th>Directory</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Mods</th><th>Mod freq</th><th>Churn rate</th></tr>
+    <tr>
+      <th>Directory</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Mods</th>
+      {% if author_filter %}<th>Ownership</th>{% else %}<th>Mod freq</th><th>Churn rate</th>{% endif %}
+    </tr>
   </thead>
   <tbody>
     {% for d in dirs %}
     <tr>
-      <td class="mono">{{ '/' if d['path'] == '' else d['path'] ~ '/' }}</td>
+      <td class="mono"><a href="{{ url_for('main.browse_page', repo_id=repo['id'], type='dir', path=d['path']) }}">{{ '/' if d['path'] == '' else d['path'] ~ '/' }}</a></td>
       <td>{{ "{:,}".format(d['added']) }}</td>
       <td>{{ "{:,}".format(d['removed']) }}</td>
       <td>{{ "{:,}".format(d['growth']) }}</td>
       <td>{{ "{:,}".format(d['churn']) }}</td>
       <td>{{ "{:,}".format(d['modifications']) }}</td>
+      {% if author_filter %}
+      <td>{{ "%.4f"|format(d['ownership']) }}</td>
+      {% else %}
       <td>{{ "%.4f"|format(d['modification_frequency']) }}</td>
       <td>{{ "%.4f"|format(d['churn_rate']) }}</td>
+      {% endif %}
     </tr>
     {% endfor %}
+    {% if not dirs %}
+    <tr><td colspan="{{ 7 if author_filter else 8 }}" class="muted">No directory changes {% if author_filter %}by this author{% endif %}.</td></tr>
+    {% endif %}
   </tbody>
 </table>
 
 <h2>
   Files
-  {% if files_total > files|length %}
-    <span class="muted small">(top {{ files|length }} of {{ "{:,}".format(files_total) }} by churn)</span>
-  {% endif %}
+  {% if author_filter %}<span class="muted small">— changed by {{ author_summary['name'] if author_summary else author_filter }}</span>{% endif %}
+  {% if files_total > files|length %}<span class="muted small">(top {{ files|length }} of {{ "{:,}".format(files_total) }} by churn)</span>{% endif %}
 </h2>
-<table>
+<input type="search" class="table-search" data-table="files-table" placeholder="Search files…">
+<table id="files-table" data-sortable>
   <thead>
-    <tr><th>File</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Mods</th><th>Mod freq</th><th>Churn rate</th></tr>
+    <tr>
+      <th>File</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Mods</th>
+      {% if author_filter %}<th>Ownership</th>{% else %}<th>Mod freq</th><th>Churn rate</th>{% endif %}
+    </tr>
   </thead>
   <tbody>
     {% for f in files %}
     <tr>
-      <td class="mono">{{ f['path'] }}</td>
+      <td class="mono"><a href="{{ url_for('main.browse_page', repo_id=repo['id'], type='file', path=f['path']) }}">{{ f['path'] }}</a></td>
       <td>{{ "{:,}".format(f['added']) }}</td>
       <td>{{ "{:,}".format(f['removed']) }}</td>
       <td>{{ "{:,}".format(f['growth']) }}</td>
       <td>{{ "{:,}".format(f['churn']) }}</td>
       <td>{{ "{:,}".format(f['modifications']) }}</td>
+      {% if author_filter %}
+      <td>{{ "%.4f"|format(f['ownership']) }}</td>
+      {% else %}
       <td>{{ "%.4f"|format(f['modification_frequency']) }}</td>
       <td>{{ "%.4f"|format(f['churn_rate']) }}</td>
+      {% endif %}
     </tr>
     {% endfor %}
+    {% if not files %}
+    <tr><td colspan="{{ 7 if author_filter else 8 }}" class="muted">No file changes {% if author_filter %}by this author{% endif %}.</td></tr>
+    {% endif %}
   </tbody>
 </table>
 
-<h2>Authors</h2>
-<table>
+<h2>Authors {% if author_filter %}<span class="muted small">— filtered</span>{% endif %}</h2>
+<input type="search" class="table-search" data-table="authors-table" placeholder="Search authors…">
+<table id="authors-table" data-sortable>
   <thead>
     <tr><th>Author</th><th>Email</th><th>Commits</th><th>Added</th><th>Removed</th><th>Growth</th><th>Churn</th><th>Mods</th><th>Ownership</th></tr>
   </thead>
@@ -104,6 +157,9 @@
       <td>{{ "%.4f"|format(a['ownership']) }}</td>
     </tr>
     {% endfor %}
+    {% if not authors %}
+    <tr><td colspan="9" class="muted">No author matches "{{ author_filter }}".</td></tr>
+    {% endif %}
   </tbody>
 </table>
 

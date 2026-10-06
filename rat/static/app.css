@@ -44,7 +44,7 @@ tr:hover td { background: rgba(91, 157, 255, 0.06); }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
 @media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
 form label { display: block; margin: 10px 0; color: var(--muted); font-size: 13px; }
-input[type=text], input[type=file] {
+input[type=text], input[type=file], input[type=search] {
   display: block;
   width: 100%;
   margin-top: 4px;
@@ -111,3 +111,32 @@ button:hover { filter: brightness(1.1); }
 .kpi { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
 .kpi-label { color: var(--muted); font-size: 12.5px; }
 .kpi-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+
+/* Batch: filtering & drill-down UI */
+select {
+  display: block;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel2);
+  color: var(--text);
+  min-width: 260px;
+}
+.filter-bar { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; margin: 14px 0 6px; }
+.filter-bar label { margin: 0; }
+.table-search { max-width: 340px; margin: 2px 0 4px; }
+.crumbs { color: var(--muted); font-size: 13.5px; margin: 4px 0 14px; }
+.banner {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 14px 0 4px;
+  font-size: 13.5px;
+}
+.kpi-cell { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+table[data-sortable] th { cursor: pointer; user-select: none; }
+th[data-sort="asc"]::after { content: " ↑"; }
+th[data-sort="desc"]::after { content: " ↓"; }
