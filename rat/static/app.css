@@ -140,3 +140,15 @@ select {
 table[data-sortable] th { cursor: pointer; user-select: none; }
 th[data-sort="asc"]::after { content: " ↑"; }
 th[data-sort="desc"]::after { content: " ↓"; }
+
+/* Charts (dependency-free inline SVG) */
+.chart {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.chart-title { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+.chart-box { font-size: 13px; color: var(--muted); }
+.chart svg { display: block; width: 100%; height: auto; }
+.grid-2 .chart { margin-bottom: 0; }

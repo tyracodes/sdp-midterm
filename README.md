@@ -48,6 +48,9 @@ and `repos/<slug>/`.
    per-author breakdown (breadcrumbs, immediate children for directories).
 7. Tables can be **searched** (text box above each table) and **sorted**
    (click a column header).
+8. The repository page includes **charts** (unfiltered view): top files and
+   top authors by churn (bars) and monthly added/removed lines over time
+   (line chart), rendered as dependency-free inline SVG.
 
 ## Metrics
 

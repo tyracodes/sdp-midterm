@@ -130,6 +130,108 @@
     }
   }
 
+  var SVG_NS = "http://www.w3.org/2000/svg";
+
+  function svgEl(tag, attrs, text) {
+    var el = document.createElementNS(SVG_NS, tag);
+    for (var key in attrs) { el.setAttribute(key, attrs[key]); }
+    if (text !== undefined) { el.textContent = text; }
+    return el;
+  }
+
+  function fmtShort(n) {
+    if (n >= 1000000) { return (n / 1000000).toFixed(1) + "M"; }
+    if (n >= 1000) { return (n / 1000).toFixed(1) + "k"; }
+    return String(n);
+  }
+
+  function renderBarChart(container, rows, labelKey, valueKey, color, suffixFn) {
+    if (!container) { return; }
+    if (!rows || !rows.length) { container.textContent = "No data."; return; }
+    var width = 700;
+    var labelW = 210;
+    var valueW = 90;
+    var rowH = 24;
+    var pad = 8;
+    var max = 1;
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i][valueKey] > max) { max = rows[i][valueKey]; }
+    }
+    var height = rows.length * rowH + pad * 2;
+    var svg = svgEl("svg", { viewBox: "0 0 " + width + " " + height });
+    for (var r = 0; r < rows.length; r++) {
+      var row = rows[r];
+      var y = pad + r * rowH;
+      var barMax = width - labelW - valueW - pad * 2;
+      var barW = Math.max(2, Math.round(barMax * (row[valueKey] / max)));
+      var label = String(row[labelKey]);
+      if (label.length > 32) { label = "…" + label.slice(-31); }
+      var suffix = suffixFn ? suffixFn(row) : "";
+      svg.appendChild(svgEl("text", { x: pad, y: y + 16, "font-size": 12, fill: "#8b95a8" }, label));
+      svg.appendChild(svgEl("rect", { x: labelW, y: y + 3, width: barW, height: rowH - 9, rx: 3, fill: color }));
+      svg.appendChild(svgEl("text", { x: labelW + barW + 6, y: y + 16, "font-size": 12, fill: "#e8ebf2" }, fmtShort(row[valueKey]) + suffix));
+    }
+    container.appendChild(svg);
+  }
+
+  function renderTimeline(container, points) {
+    if (!container) { return; }
+    if (!points || !points.length) { container.textContent = "No data."; return; }
+    var W = 900;
+    var H = 260;
+    var padL = 54;
+    var padR = 14;
+    var padT = 14;
+    var padB = 30;
+    var innerW = W - padL - padR;
+    var innerH = H - padT - padB;
+    var max = 1;
+    for (var i = 0; i < points.length; i++) {
+      if (points[i][1] > max) { max = points[i][1]; }
+      if (points[i][2] > max) { max = points[i][2]; }
+    }
+    var n = points.length;
+    function px(i) { return padL + (n === 1 ? innerW / 2 : (innerW * i) / (n - 1)); }
+    function py(v) { return padT + innerH * (1 - v / max); }
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H });
+    var levels = [0, 0.5, 1];
+    for (var g = 0; g < levels.length; g++) {
+      var gy = py(max * levels[g]);
+      svg.appendChild(svgEl("line", { x1: padL, y1: gy, x2: W - padR, y2: gy, stroke: "#263141", "stroke-width": 1 }));
+      svg.appendChild(svgEl("text", { x: padL - 6, y: gy + 4, "font-size": 11, fill: "#8b95a8", "text-anchor": "end" }, fmtShort(Math.round(max * levels[g]))));
+    }
+    var ticks = n === 1 ? [0] : [0, Math.floor((n - 1) / 2), n - 1];
+    for (var t = 0; t < ticks.length; t++) {
+      if (t > 0 && ticks[t] === ticks[t - 1]) { continue; }
+      svg.appendChild(svgEl("text", { x: px(ticks[t]), y: H - 8, "font-size": 11, fill: "#8b95a8", "text-anchor": "middle" }, points[ticks[t]][0]));
+    }
+    function series(idx, color) {
+      var parts = [];
+      for (var p = 0; p < n; p++) { parts.push(px(p) + "," + py(points[p][idx])); }
+      svg.appendChild(svgEl("polyline", { points: parts.join(" "), fill: "none", stroke: color, "stroke-width": 1.5 }));
+    }
+    series(1, "#3ddc97");
+    series(2, "#ff6b6b");
+    svg.appendChild(svgEl("rect", { x: W - 170, y: 6, width: 10, height: 10, rx: 2, fill: "#3ddc97" }));
+    svg.appendChild(svgEl("text", { x: W - 155, y: 15, "font-size": 11, fill: "#8b95a8" }, "added"));
+    svg.appendChild(svgEl("rect", { x: W - 95, y: 6, width: 10, height: 10, rx: 2, fill: "#ff6b6b" }));
+    svg.appendChild(svgEl("text", { x: W - 80, y: 15, "font-size": 11, fill: "#8b95a8" }, "removed"));
+    container.appendChild(svg);
+  }
+
+  function renderCharts() {
+    var el = document.getElementById("chart-data");
+    if (!el) { return; }
+    var data;
+    try { data = JSON.parse(el.textContent); } catch (e) { return; }
+    renderBarChart(document.getElementById("chart-files"), data.files, "path", "churn", "#5b9dff", null);
+    renderBarChart(
+      document.getElementById("chart-authors"), data.authors, "name", "churn", "#3ddc97",
+      function (row) { return " (" + (row.ownership * 100).toFixed(1) + "%)"; }
+    );
+    renderTimeline(document.getElementById("chart-timeline"), data.timeline);
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     var zipForm = document.getElementById("zip-form");
     if (zipForm) {
@@ -149,5 +251,6 @@
     initSortableTables();
     initTableSearch();
     loadRepoKpis();
+    renderCharts();
   });
 })();

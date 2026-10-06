@@ -67,6 +67,28 @@ def _author_filter():
     return raw, raw, None
 
 
+_timeline_cache = {}
+
+
+def _timeline(con, repo_id, version):
+    """Monthly added/removed line totals (read-only, memoised per HEAD)."""
+    key = (repo_id, version)
+    cached = _timeline_cache.get(key)
+    if cached is not None:
+        return cached
+    rows = con.execute(
+        "SELECT strftime('%Y-%m', c.committer_ts, 'unixepoch') AS month, "
+        "SUM(fs.added) AS added, SUM(fs.removed) AS removed "
+        "FROM file_stats fs "
+        "JOIN commits c ON c.repo_id = fs.repo_id AND c.sha = fs.sha "
+        "WHERE fs.repo_id=? GROUP BY month ORDER BY month",
+        (repo_id,),
+    ).fetchall()
+    timeline = [[row["month"], row["added"] or 0, row["removed"] or 0] for row in rows]
+    _timeline_cache[key] = timeline
+    return timeline
+
+
 @bp.get("/repo/<int:repo_id>")
 def repo_page(repo_id):
     con = db.connect()
@@ -119,6 +141,25 @@ def repo_page(repo_id):
                 context["files_total"] = len(data["files"])
                 context["dirs"] = data["dirs"]
                 context["authors"] = data["authors"]
+                # charts are repository-wide, so they only render in the
+                # unfiltered view
+                context["chart_data"] = {
+                    "files": [
+                        {"path": row["path"], "churn": row["churn"]}
+                        for row in data["files"][:10]
+                        if row["churn"] > 0
+                    ],
+                    "authors": [
+                        {
+                            "name": row["name"],
+                            "churn": row["churn"],
+                            "ownership": row["ownership"],
+                        }
+                        for row in data["authors"][:10]
+                        if row["churn"] > 0
+                    ],
+                    "timeline": _timeline(con, repo_id, repo["head_sha"]),
+                }
         return render_template("repo.html", **context)
     finally:
         con.close()

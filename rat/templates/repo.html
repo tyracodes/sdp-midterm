@@ -69,6 +69,25 @@
   <div class="kpi"><div class="kpi-label">Churn rate (lines/commit)</div><div class="kpi-value">{{ "%.4f"|format(summary['churn_rate']) }}</div></div>
 </section>
 
+{% if chart_data is defined %}
+<h2>Visualisation</h2>
+<script type="application/json" id="chart-data">{{ chart_data|tojson }}</script>
+<div class="grid-2">
+  <div class="chart">
+    <div class="chart-title">Top files by churn</div>
+    <div class="chart-box" id="chart-files"></div>
+  </div>
+  <div class="chart">
+    <div class="chart-title">Top authors by churn (ownership)</div>
+    <div class="chart-box" id="chart-authors"></div>
+  </div>
+</div>
+<div class="chart">
+  <div class="chart-title">Lines over time — monthly added / removed</div>
+  <div class="chart-box" id="chart-timeline"></div>
+</div>
+{% endif %}
+
 <h2>Directories {% if author_filter %}<span class="muted small">— this author</span>{% endif %}</h2>
 <input type="search" class="table-search" data-table="dirs-table" placeholder="Search directories…">
 <table id="dirs-table" data-sortable>
