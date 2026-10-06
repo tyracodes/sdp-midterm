@@ -27,6 +27,36 @@ def _err(message, code):
     return jsonify(error=message), code
 
 
+@bp.app_errorhandler(404)
+def not_found(error):
+    if request.path.startswith("/api/"):
+        return _err("Not found.", 404)
+    return (
+        render_template(
+            "error.html",
+            code=404,
+            title="Page not found",
+            detail="The page or object you requested does not exist.",
+        ),
+        404,
+    )
+
+
+@bp.app_errorhandler(500)
+def server_error(error):
+    if request.path.startswith("/api/"):
+        return _err("Internal server error.", 500)
+    return (
+        render_template(
+            "error.html",
+            code=500,
+            title="Internal server error",
+            detail="Something went wrong while processing the request.",
+        ),
+        500,
+    )
+
+
 # ------------------------------------------------------------------ pages
 
 @bp.get("/health")

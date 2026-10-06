@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} — {{ title }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1 class="error-code">{{ code }}</h1>
+  <h2>{{ title }}</h2>
+  <p class="muted">{{ detail }}</p>
+  <p><a href="{{ url_for('main.index') }}">← Back to the dashboard</a></p>
+</div>
+{% endblock %}

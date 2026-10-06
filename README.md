@@ -61,6 +61,22 @@ and `repos/<slug>/`.
     single author in every metric, and each merge can be undone with
     Unmerge. The repository's `.mailmap` is still applied automatically at
     ingestion.
+11. Every table has an **Export CSV** button (repository, object drill-down
+    and overview pages).
+12. **Friendly error pages**: unknown pages render a styled 404/500 page;
+    the JSON API returns JSON error objects instead.
+
+## Performance
+
+Measured locally with the Flask dev server (cold = first request, full
+metric computation; warm = subsequent requests):
+
+- Ingest of FFmpeg (**117,998 commits**, 265k commit–file rows): **131 s**
+  from URL to analysed.
+- Very large repository (FFmpeg, 118k commits): repository page **2.0 s**
+  cold, **~70 ms** warm; single-repo JSON API ~2 ms; overview page ~7 ms.
+- Medium repositories (cJSON ~1k commits, Redis ~18k commits): repository
+  page loads well under a second.
 
 ## Metrics
 

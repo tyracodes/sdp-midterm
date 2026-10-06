@@ -127,6 +127,16 @@ select {
 .filter-bar label { margin: 0; }
 .filter-bar input[type=date] { width: 170px; }
 .table-search { max-width: 340px; margin: 2px 0 4px; }
+.table-export {
+  margin: 2px 0 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  background: var(--panel);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.error-code { font-size: 40px; margin: 0 0 4px; }
 .crumbs { color: var(--muted); font-size: 13.5px; margin: 4px 0 14px; }
 .banner {
   background: var(--panel);

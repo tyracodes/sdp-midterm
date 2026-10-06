@@ -232,6 +232,52 @@
     renderTimeline(document.getElementById("chart-timeline"), data.timeline);
   }
 
+  function csvCell(value) {
+    if (/[",\r\n]/.test(value)) {
+      return '"' + value.replace(/"/g, '""') + '"';
+    }
+    return value;
+  }
+
+  function tableToCsv(table) {
+    var lines = [];
+    var rows = table.querySelectorAll("tr");
+    for (var i = 0; i < rows.length; i++) {
+      var cells = rows[i].querySelectorAll("th, td");
+      if (cells.length === 1 && cells[0].hasAttribute("colspan")) { continue; }
+      var values = [];
+      for (var j = 0; j < cells.length; j++) {
+        values.push(csvCell(cells[j].textContent.trim()));
+      }
+      lines.push(values.join(","));
+    }
+    return lines.join("\r\n");
+  }
+
+  function initTableExport() {
+    var tables = document.querySelectorAll("table[data-sortable]");
+    for (var i = 0; i < tables.length; i++) {
+      (function (table) {
+        var button = document.createElement("button");
+        button.type = "button";
+        button.className = "table-export";
+        button.textContent = "Export CSV";
+        button.addEventListener("click", function () {
+          var blob = new Blob([tableToCsv(table)], { type: "text/csv" });
+          var url = URL.createObjectURL(blob);
+          var link = document.createElement("a");
+          link.href = url;
+          link.download = (table.id || "table") + ".csv";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        });
+        table.parentNode.insertBefore(button, table);
+      })(tables[i]);
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     var zipForm = document.getElementById("zip-form");
     if (zipForm) {
@@ -250,6 +296,7 @@
     pollJobs();
     initSortableTables();
     initTableSearch();
+    initTableExport();
     loadRepoKpis();
     renderCharts();
   });
